@@ -41,6 +41,10 @@ endif()
 include(CMakeDependentOption)
 
 # Open3D build options
+option(BUILD_UVATLAS              "Build with UVAtlas support"               OFF)
+if(BUILD_UVATLAS)
+    add_definitions(-DBUILD_UVATLAS)
+endif()
 option(BUILD_SHARED_LIBS          "Build shared libraries"                   OFF)
 option(BUILD_EXAMPLES             "Build Open3D examples programs"           ON )
 option(BUILD_UNIT_TESTS           "Build Open3D unit tests"                  OFF)
