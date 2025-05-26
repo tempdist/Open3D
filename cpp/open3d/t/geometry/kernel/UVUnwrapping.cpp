@@ -1,17 +1,18 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/t/geometry/kernel/UVUnwrapping.h"
+#include "open3d/utility/Logging.h"
 
-// clang-format off
-// include tbb before uvatlas
+#ifdef BUILD_UVATLAS
+// Original UVAtlas-dependent includes
 #include <tbb/parallel_for.h>
 #include <UVAtlas.h>
-// clang-format on
+#endif
 
 namespace open3d {
 namespace t {
@@ -19,6 +20,21 @@ namespace geometry {
 namespace kernel {
 namespace uvunwrapping {
 
+std::tuple<float, int, int> ComputeUVAtlas(TriangleMesh& mesh,
+                                         const size_t width,
+                                         const size_t height,
+                                         const float gutter,
+                                         const float max_stretch,
+                                         int parallel_partitions,
+                                         int nthreads) {
+    utility::LogWarning(
+        "ComputeUVAtlas called but Open3D was built without UVAtlas support. "
+        "No UV coordinates will be generated.");
+
+    // No UV atlas is generated, but we need to return a valid tuple
+    return std::make_tuple(0.0f, 0, 0);
+}
+#ifdef BUILD_UVATLAS
 namespace {
 using namespace DirectX;
 
@@ -294,7 +310,7 @@ std::tuple<float, int, int> ComputeUVAtlas(TriangleMesh& mesh,
     return std::tie(combined_output.max_stretch_out,
                     combined_output.num_charts_out, parallel_partitions);
 }
-
+#endif  // BUILD_UVATLAS
 }  // namespace uvunwrapping
 }  // namespace kernel
 }  // namespace geometry

@@ -1523,15 +1523,15 @@ endif()
 list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_vtk)
 
 # UVAtlas
-include(${Open3D_3RDPARTY_DIR}/uvatlas/uvatlas.cmake)
-open3d_import_3rdparty_library(3rdparty_uvatlas
-    HIDDEN
-    INCLUDE_DIRS ${UVATLAS_INCLUDE_DIRS}
-    LIB_DIR      ${UVATLAS_LIB_DIR}
-    LIBRARIES    ${UVATLAS_LIBRARIES}
-    DEPENDS      ext_uvatlas
-)
-list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_uvatlas)
+# include(${Open3D_3RDPARTY_DIR}/uvatlas/uvatlas.cmake)
+# open3d_import_3rdparty_library(3rdparty_uvatlas
+#    HIDDEN
+#    INCLUDE_DIRS ${UVATLAS_INCLUDE_DIRS}
+#    LIB_DIR      ${UVATLAS_LIB_DIR}
+#    LIBRARIES    ${UVATLAS_LIBRARIES}
+#    DEPENDS      ext_uvatlas
+#)
+#list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS_FROM_CUSTOM Open3D::3rdparty_uvatlas)
 
 
 if(BUILD_SYCL_MODULE)
