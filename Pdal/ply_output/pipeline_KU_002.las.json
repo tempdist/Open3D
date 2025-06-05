@@ -1,0 +1,13 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "/home/tempdist/Open3D/Pdal/soal-3-lidar/KU_002.las"
+    },
+    {
+      "type": "writers.ply",
+      "filename": "/home/tempdist/Open3D/Pdal/ply_output/KU_002.ply",
+      "storage_mode": "little endian"
+    }
+  ]
+}

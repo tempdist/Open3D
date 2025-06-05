@@ -1,0 +1,13 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "KU_004.las" 
+    },
+    {
+      "type": "writers.ply",
+      "filename": "output_with_normals_004bin.ply",
+      "storage_mode": "little endian"
+    }
+  ]
+}
