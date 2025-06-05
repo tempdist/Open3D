@@ -47,6 +47,10 @@ together to enable full end to end pipelines:
 
 For more, please visit the [Open3D documentation](https://www.open3d.org/docs).
 
+## UVAtlas bypassed in this fork because of sal.h dependecy during make
+
+Please use -DBUILD_UVATLAS=ON or OFF based on sal.h error during make -j
+
 ## Python quick start
 
 Pre-built pip packages support Ubuntu 18.04+, macOS 10.15+ and Windows 10+
