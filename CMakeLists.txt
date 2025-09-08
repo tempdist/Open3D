@@ -1,40 +1,40 @@
-cmake_minimum_required(VERSION 3.20)
-# If you're using Ubuntu 18.04, we suggest you install the latest CMake from the
+cmake_minimum_required(VERSION 3.24)
+# If you're using Ubuntu 20.04, we suggest you install the latest CMake from the
 # official repository https://apt.kitware.com/.
-#
-# CMake 3.19+ is required to:
-# - allow linking with OBJECT libraries
-# - prevent erroneous -gencode option deduplication with CUDA
-# - simplify generator expressions for selecting compile flags and setting
-#   global hardened link flags
-# - use first-class language support for ISPC (3.19.2 patch release required)
-#
-# CMake 3.20+ is required to:
-# - detect IntelLLVM compiler for SYCL
+# CMake 3.24+ is required for CUDA native arch selection
+# CMake 3.22+ is required by Assimp v5.4.2
+# CMake 3.20+ is required to detect IntelLLVM compiler for SYCL
 
 # CMAKE_HOST_SYSTEM_PROCESSOR is only available after calling project(),
 # which depends on ${OPEN3D_VERSION}, which depends on ${DEVELOPER_BUILD}.
+# Add this to your root CMakeLists.txt before project() declaration
+
 if(UNIX AND NOT APPLE)
+
     execute_process(COMMAND uname -m
-        OUTPUT_VARIABLE PROCESSOR_ARCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+            OUTPUT_VARIABLE PROCESSOR_ARCH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if(PROCESSOR_ARCH STREQUAL "aarch64")
         set(LINUX_AARCH64 TRUE)
+        set(CMAKE_CUDA_HOST_COMPILER /usr/bin/g++-12)
+
+        set(CMAKE_C_COMPILER /usr/bin/gcc-12)
+        set(CMAKE_CXX_COMPILER /usr/bin/g++-12)
     endif()
 endif()
 if(APPLE)
     execute_process(COMMAND uname -m
-        OUTPUT_VARIABLE PROCESSOR_ARCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+            OUTPUT_VARIABLE PROCESSOR_ARCH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if(PROCESSOR_ARCH STREQUAL "arm64")
         set(APPLE_AARCH64 TRUE)
         set (CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING
-            "Minimum OS X deployment version" FORCE)
+                "Minimum OS X deployment version" FORCE)
     else()
         set (CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING
-            "Minimum OS X deployment version" FORCE)
+                "Minimum OS X deployment version" FORCE)
     endif()
 endif()
 
@@ -45,12 +45,18 @@ option(BUILD_UVATLAS              "Build with UVAtlas support"               OFF
 if(BUILD_UVATLAS)
     add_definitions(-DBUILD_UVATLAS)
 endif()
+
 option(BUILD_SHARED_LIBS          "Build shared libraries"                   OFF)
 option(BUILD_EXAMPLES             "Build Open3D examples programs"           ON )
 option(BUILD_UNIT_TESTS           "Build Open3D unit tests"                  OFF)
 option(BUILD_BENCHMARKS           "Build the micro benchmarks"               OFF)
 option(BUILD_PYTHON_MODULE        "Build the python module"                  ON )
 option(BUILD_CUDA_MODULE          "Build the CUDA module"                    OFF)
+if(BUILD_CUDA_MODULE)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin=/usr/bin/g++-12")
+endif()
+
+option(BUILD_WITH_CUDA_STATIC     "Build with static CUDA libraries"         ON )
 option(BUILD_COMMON_CUDA_ARCHS    "Build for common CUDA GPUs (for release)" OFF)
 if (WIN32)   # Causes CUDA runtime error on Windows (See issue #6555)
     option(ENABLE_CACHED_CUDA_MANAGER "Enable cached CUDA memory manager"    OFF)
@@ -65,7 +71,7 @@ endif()
 option(BUILD_COMMON_ISPC_ISAS     "Build for common ISPC ISAs (for release)" OFF)
 option(BUILD_GUI                  "Builds new GUI"                           ON )
 option(WITH_OPENMP                "Use OpenMP multi-threading"               ON )
-option(WITH_IPPICV                "Use Intel Performance Primitives"         ON )
+option(WITH_IPP                "Use Intel Integrated Performance Primitives" ON )
 option(ENABLE_HEADLESS_RENDERING  "Use OSMesa for headless rendering"        OFF)
 if(BUILD_SHARED_LIBS)
     option(STATIC_WINDOWS_RUNTIME "Use static (MT/MTd) Windows runtime"      OFF)
@@ -73,7 +79,17 @@ else()
     option(STATIC_WINDOWS_RUNTIME "Use static (MT/MTd) Windows runtime"      ON )
 endif()
 option(BUILD_SYCL_MODULE          "Build SYCL module with Intel oneAPI"      OFF)
-option(GLIBCXX_USE_CXX11_ABI      "Set -D_GLIBCXX_USE_CXX11_ABI=1"           ON )
+if(BUILD_SYCL_MODULE)
+    set(OPEN3D_SYCL_TARGETS "spir64" CACHE STRING
+            "SYCL targets: spir64 for JIT, or another for AOT compilation. See https://github.com/intel/llvm/blob/sycl/sycl/doc/UsersManual.md."
+    )
+    set(OPEN3D_SYCL_TARGET_BACKEND_OPTIONS "" CACHE STRING
+            "SYCL target backend options, e.g. to compile for a specific device. See https://github.com/intel/llvm/blob/sycl/sycl/doc/UsersManual.md."
+    )
+    set(BUILD_ISPC_MODULE OFF CACHE BOOL "Build the ISPC module" FORCE)
+    set(BUILD_CUDA_MODULE OFF CACHE BOOL "Build the CUDA module" FORCE)
+endif()
+option(GLIBCXX_USE_CXX11_ABI      "Set -D_GLIBCXX_USE_CXX11_ABI=0"           OFF )
 option(ENABLE_SYCL_UNIFIED_SHARED_MEMORY "Enable SYCL unified shared memory" OFF)
 if(BUILD_GUI AND (WIN32 OR UNIX AND NOT LINUX_AARCH64 AND NOT APPLE_AARCH64))
     option(BUILD_WEBRTC           "Build WebRTC visualizer"                  ON )
@@ -140,8 +156,8 @@ option(BUILD_AZURE_KINECT         "Build support for Azure Kinect sensor"    OFF
 
 # ML library options
 option(BUILD_TENSORFLOW_OPS       "Build ops for TensorFlow"                 OFF)
-option(BUILD_PYTORCH_OPS          "Build ops for PyTorch"                    OFF)
-option(BUNDLE_OPEN3D_ML           "Includes the Open3D-ML repo in the wheel" OFF)
+option(BUILD_PYTORCH_OPS          "Build ops for PyTorch"                    ON )
+option(BUNDLE_OPEN3D_ML           "Includes the Open3D-ML repo in the wheel" ON )
 
 # Release build options
 option(DEVELOPER_BUILD      "Add +commit_hash to the project version number" ON )
@@ -162,7 +178,7 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
         set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
         # Set the possible values of build type for cmake-gui.
         set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-                    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+                "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
     endif()
     message(STATUS "CMAKE_BUILD_TYPE is set to ${CMAKE_BUILD_TYPE}.")
 endif()
@@ -185,7 +201,7 @@ endif()
 # downloading from the Internet if the files are available. This is only supported by
 # a limited number of 3rd party libraries.
 set(OPEN3D_THIRD_PARTY_DOWNLOAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty_downloads"
-    CACHE PATH "Third-party download directory for caching.")
+        CACHE PATH "Third-party download directory for caching.")
 message(STATUS "Downloading third-party dependencies to ${OPEN3D_THIRD_PARTY_DOWNLOAD_DIR}")
 
 set(FILAMENT_PRECOMPILED_ROOT "" CACHE PATH "Path to precompiled Filament library (used if BUILD_FILAMENT_FROM_SOURCE=OFF)")
@@ -251,18 +267,20 @@ endforeach()
 set(OPEN3D_VERSION_DEVHASH "")
 if(DEVELOPER_BUILD)
     execute_process(COMMAND git -C "${CMAKE_SOURCE_DIR}" log --pretty=format:%h -n 1
-        OUTPUT_VARIABLE GIT_REV)
+            OUTPUT_VARIABLE GIT_REV)
     if (GIT_REV)
         set(OPEN3D_VERSION_DEVHASH "+${GIT_REV}")
     endif()
 endif()
 string(CONCAT OPEN3D_VERSION
-    "${OPEN3D_VERSION_MAJOR}"
-    ".${OPEN3D_VERSION_MINOR}"
-    ".${OPEN3D_VERSION_PATCH}"
+        "${OPEN3D_VERSION_MAJOR}"
+        ".${OPEN3D_VERSION_MINOR}"
+        ".${OPEN3D_VERSION_PATCH}"
 )
 set(OPEN3D_VERSION_FULL "${OPEN3D_VERSION}${OPEN3D_VERSION_DEVHASH}" CACHE
-    STRING "Open3D full version.")
+        STRING "Open3D full version.")
+set(OPEN3D_ABI_VERSION "${OPEN3D_VERSION_MAJOR}.${OPEN3D_VERSION_MINOR}" CACHE
+        STRING "Open3D ABI version / SOVERSION (for releases only).")
 # Set additional info
 set(PROJECT_EMAIL       "open3d@intel.com")
 set(PROJECT_DOCS        "https://www.open3d.org/docs")
@@ -270,19 +288,19 @@ set(PROJECT_CODE        "https://github.com/isl-org/Open3D")
 set(PROJECT_ISSUES      "https://github.com/isl-org/Open3D/issues")
 
 project(Open3D
-    VERSION ${OPEN3D_VERSION}
-    # Set PROJECT_DESCRIPTION
-    DESCRIPTION "Open3D: A Modern Library for 3D Data Processing."
-    # Set PROJECT_HOMEPAGE_URL
-    HOMEPAGE_URL "https://www.open3d.org"
-    LANGUAGES C CXX)
+        VERSION ${OPEN3D_VERSION}
+        # Set PROJECT_DESCRIPTION
+        DESCRIPTION "Open3D: A Modern Library for 3D Data Processing."
+        # Set PROJECT_HOMEPAGE_URL
+        HOMEPAGE_URL "https://www.open3d.org"
+        LANGUAGES C CXX)
 message(STATUS "Open3D ${OPEN3D_VERSION_FULL}")
 
 # Check SYCL compatiblility
 if (BUILD_SYCL_MODULE AND NOT CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
     message(FATAL_ERROR "BUILD_SYCL_MODULE requires IntelLLVM (DPC++) compiler, "
-                        "but got CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID} "
-                        "and CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}.")
+            "but got CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID} "
+            "and CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}.")
 endif()
 if (BUILD_SYCL_MODULE AND (NOT UNIX OR APPLE))
     message(FATAL_ERROR "Open3D SYCL support is only available on Linux")
@@ -290,40 +308,17 @@ endif()
 if(BUILD_SYCL_MODULE AND NOT GLIBCXX_USE_CXX11_ABI)
     message(FATAL_ERROR "BUILD_SYCL_MODULE=ON requires GLIBCXX_USE_CXX11_ABI=ON")
 endif()
-if(BUILD_SYCL_MODULE AND BUILD_TENSORFLOW_OPS)
-    message(FATAL_ERROR "BUILD_SYCL_MODULE=ON requires BUILD_TENSORFLOW_OPS=OFF")
-endif()
-if(BUILD_SYCL_MODULE AND BUILD_PYTORCH_OPS)
-    message(FATAL_ERROR "BUILD_SYCL_MODULE=ON requires BUILD_PYTORCH_OPS=OFF")
-endif()
 if(BUILD_SYCL_MODULE AND BUILD_CUDA_MODULE)
     message(FATAL_ERROR "BUILD_SYCL_MODULE and BUILD_SYCL_MODULE cannot be on at the same time for now.")
 endif()
 
 # Global flag to set CXX standard.
 # This does not affect 3rd party libraries.
-# Tensorflow 2.9+ requires cxx_17, but MSVC 19.29 throws errors with C++17
-# enabled.
-if (BUILD_SYCL_MODULE OR BUILD_TENSORFLOW_OPS)
-    set(CMAKE_CXX_STANDARD 17)
-else()
-    set(CMAKE_CXX_STANDARD 14)
-endif()
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)   # Improved compatibility
 
-# FIXME: Remove this workaround once a fixed Visual Studio 16.10 version is released.
-if (BUILD_CUDA_MODULE
-    AND CMAKE_CXX_COMPILER MATCHES "MSVC"
-    AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.29"
-)
-    # Keep C++14 standard for unaffected C++ files, but use C++17 for CUDA files.
-    set(CMAKE_CUDA_STANDARD 17)
-    # Suppress warnings for deprecated C++17 functions.
-    add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING>)
-    message(WARNING "Visual Studio 16.10 (MSVC 19.29) introduced a compiler bug when compiling CUDA code with C++14. "
-        "Workaround this bug by setting the CUDA standard to C++17.")
-endif()
-
+# Suppress warnings for deprecated C++17 functions (stdgpu->thrust with CUDA 11 for MSVC).
+add_compile_definitions($<$<COMPILE_LANGUAGE:CUDA>:_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING>)
 # CMake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cmake")
 
@@ -334,12 +329,12 @@ if(NOT DEFINED Python3_FIND_REGISTRY)
 endif()
 # Requires Python 3.6+
 find_package(Python3 3.6
-             COMPONENTS Interpreter Development)
+        COMPONENTS Interpreter Development)
 if (Python3_FOUND)
     # Setup PYTHON_EXECUTABLE for 3rdparty modules
     # which still use the deprecated find_package(PythonInterp)
     set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE} CACHE STRING
-        "Deprecated path to the Python executable (for 3rdparty only)" FORCE)
+            "Deprecated path to the Python executable (for 3rdparty only)" FORCE)
 else()
     if (BUILD_PYTHON_MODULE)
         message(FATAL_ERROR "BUILD_PYTHON_MODULE=ON requires Python >= 3.6. Please ensure it is in PATH.")
@@ -348,8 +343,8 @@ endif()
 
 # npm version has to be MAJOR.MINOR.PATCH
 string(CONCAT PROJECT_VERSION_THREE_NUMBER "${OPEN3D_VERSION_MAJOR}"
-                                           ".${OPEN3D_VERSION_MINOR}"
-                                           ".${OPEN3D_VERSION_PATCH}")
+        ".${OPEN3D_VERSION_MINOR}"
+        ".${OPEN3D_VERSION_PATCH}")
 
 # PyPI package name controls specifies the repository name on PyPI. The default
 # name is "open3d". In the past, for historical reasons, we've used the
@@ -403,26 +398,62 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 macro(open3d_patch_findthreads_module_)
     if(TARGET Threads::Threads AND THREADS_HAVE_PTHREAD_ARG)
         set_property(TARGET Threads::Threads
-                     PROPERTY INTERFACE_COMPILE_OPTIONS
-                     "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xcompiler -pthread>"
-                     "$<$<AND:$<NOT:$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>>,$<NOT:$<COMPILE_LANGUAGE:ISPC>>>:-pthread>")
+                PROPERTY INTERFACE_COMPILE_OPTIONS
+                "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xcompiler -pthread>"
+                "$<$<AND:$<NOT:$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>>,$<NOT:$<COMPILE_LANGUAGE:ISPC>>>:-pthread>")
     endif()
 endmacro()
 cmake_language(EVAL CODE "cmake_language(DEFER CALL open3d_patch_findthreads_module_)")
 
 # Build CUDA module by default if CUDA is available
 if(BUILD_CUDA_MODULE)
-    include(Open3DMakeCudaArchitectures)
-    open3d_make_cuda_architectures(CUDA_ARCHS)
-    set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCHS})
-
-    message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
-    enable_language(CUDA)
-
-    if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" AND CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "10.1")
-        message(FATAL_ERROR "CUDA 10.0 and older are not supported. Please upgrade to CUDA 10.1 or newer.")
+    # Suppress nvcc unsupported compiler error for MSVC 2022 with CUDA 11.7 to 12.4
+    # https://forums.developer.nvidia.com/t/problems-with-latest-vs2022-update/294150/12
+    if (MSVC AND MSVC_VERSION VERSION_LESS_EQUAL "1949")
+        # Set this before any CUDA checks
+        set(CMAKE_CUDA_FLAGS "--allow-unsupported-compiler" CACHE STRING "Additional flags for nvcc" FORCE)
+        message(WARNING "Using --allow-unsupported-compiler flag for nvcc with MSVC 2022. "
+                "Set $Env:NVCC_PREPEND_FLAGS='--allow-unsupported-compiler' if nvcc still fails.")
     endif()
-endif ()
+    if (CMAKE_CUDA_ARCHITECTURES)
+        message(STATUS "Building with user-provided CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+    else()
+        if(BUILD_COMMON_CUDA_ARCHS)
+            # Build with all supported architectures for previous 2 generations and
+            # M0 (minor=0) architectures for previous generations (including
+            # deprecated). Note that cubin for M0 runs on GPUs with architecture Mx.
+            # This is a tradeoff between binary size / build time and runtime on
+            # older architectures. See:
+            # https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#building-for-maximum-compatibility
+            # https://docs.nvidia.com/cuda/ampere-compatibility-guide/index.html#application-compatibility-on-ampere
+            # https://en.wikipedia.org/wiki/CUDA#GPUs_supported
+            find_package(CUDAToolkit REQUIRED)
+            if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
+                set(CMAKE_CUDA_ARCHITECTURES 75-real 80-real 86-real 89-real 90)    # Turing, Ampere, Ada Lovelace, Hopper
+            elseif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.1")
+                set(CMAKE_CUDA_ARCHITECTURES 70-real 75-real 80-real 86)            # Volta, Turing, Ampere
+            elseif(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.0")
+                set(CMAKE_CUDA_ARCHITECTURES 60-real 70-real 72-real 75-real 80)    # Pascal, Volta, Turing, Ampere
+            else()
+                set(CMAKE_CUDA_ARCHITECTURES 30-real 50-real 60-real 70-real 75)    # Kepler, Maxwell, Pascal, Turing
+            endif()
+            message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+        else()
+            execute_process(COMMAND nvidia-smi RESULT_VARIABLE NVIDIA_CHECK OUTPUT_QUIET)
+            if (NVIDIA_CHECK EQUAL 0)
+                message(STATUS "Building with native CUDA architecture.")
+                set(CMAKE_CUDA_ARCHITECTURES native)
+            else()
+                message(WARNING "No CUDA GPU detected. Building with CMake default CUDA architecture.")
+            endif()
+        endif()
+    endif()
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" AND CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "11.5")
+        message(FATAL_ERROR "CUDA 11.4 and older are not supported. Please upgrade to CUDA 11.5 or newer.")
+    endif()
+endif()
 
 # ISPC language emulation support
 include(Open3DISPC)
@@ -465,6 +496,8 @@ if(WIN32)
     #       Then, we could use -fvisibility=hidden for Linux as well
     SET(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     if(MSVC)
+        # MSVC standards-compliant mode: Error in PoissonRecon 3rd party header
+        # add_compile_options($<$<COMPILE_LANGUAGE:CXX>:"/permissive-">)
         # Make sure we don't hit the 65535 object member limit with MSVC
         #
         # /bigobj allows object files with more than 65535 members
@@ -480,6 +513,7 @@ if(WIN32)
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
     endif()
 endif()
+
 
 # Folder view for project files
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -498,6 +532,12 @@ macro(add_source_group module_name)
     file(GLOB MODULE_MATERIAL_FILES "${module_name}/*.mat")
     source_group("Source Files\\Material" FILES ${MODULE_MATERIAL_FILES})
 endmacro()
+
+if (LINUX_AARCH64)
+    # Fix for ImportError: ... /pybind.cpython-310-aarch64-linux-gnu.so: cannot allocate memory in static TLS block
+    # https://bugs.launchpad.net/ubuntu/+source/mysql-8.0/+bug/1889851
+    add_compile_options("-ftls-model=global-dynamic")
+endif()
 
 # Include convenience functions
 include(Open3DLink3rdpartyLibraries)
@@ -526,16 +566,16 @@ export(EXPORT ${PROJECT_NAME}Targets NAMESPACE ${PROJECT_NAME}::)
 if (Python3_EXECUTABLE)
     # `make check-style` checks style for c++/cuda/python/ipynb files
     add_custom_target(check-style
-        COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/util/check_style.py
-        COMMENT "Python executable used for style check: ${Python3_EXECUTABLE}."
+            COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/util/check_style.py
+            COMMENT "Python executable used for style check: ${Python3_EXECUTABLE}."
     )
 
     # `make apply-style` applies style for c++/cuda/python/ipynb files
     add_custom_target(apply-style
-        COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/util/check_style.py --apply
-        COMMENT "Python executable used for style check: ${Python3_EXECUTABLE}."
+            COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/util/check_style.py --apply
+            COMMENT "Python executable used for style check: ${Python3_EXECUTABLE}."
     )
 endif()
 
@@ -544,19 +584,19 @@ include(Open3DPackaging)
 # `make check-cpp-style` checks style for c++/cuda files.
 # This works outside of python virtualenv.
 add_custom_target(check-cpp-style
-    COMMAND ${CMAKE_COMMAND}
-    -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-    -DAPPLY=OFF
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/util/check_cpp_style.cmake
+        COMMAND ${CMAKE_COMMAND}
+        -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+        -DAPPLY=OFF
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/util/check_cpp_style.cmake
 )
 
 # `make apply-cpp-style` applies style for c++/cuda files.
 # This works outside of python virtualenv.
 add_custom_target(apply-cpp-style
-    COMMAND ${CMAKE_COMMAND}
-    -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-    -DAPPLY=ON
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/util/check_cpp_style.cmake
+        COMMAND ${CMAKE_COMMAND}
+        -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+        -DAPPLY=ON
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/util/check_cpp_style.cmake
 )
 
 include(Open3DPrintConfigurationSummary)

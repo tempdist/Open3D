@@ -1,0 +1,17 @@
+{
+  "pipeline": [
+    {
+      "type": "readers.las",
+      "filename": "KU_003.las" 
+    },
+    {
+      "type": "filters.normal"
+    },
+    {
+      "type": "writers.ply",
+      "filename": "output_with_normals_003.ply",
+      "dims": "X,Y,Z,NormalX,NormalY,NormalZ,Red,Green,Blue",
+      "storage_mode": "ascii"
+    }
+  ]
+}

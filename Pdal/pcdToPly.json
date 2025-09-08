@@ -1,0 +1,11 @@
+[
+    {
+        "type":"readers.pcd",
+        "filename":"KU_test_1.pcd"
+    },
+    {
+        "type":"writers.ply",
+        "storage_mode":"little endian",
+        "filename":"outKU_test_1.ply"
+    }
+]
